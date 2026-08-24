@@ -13,16 +13,34 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	"github.com/cenkalti/backoff/v4"
 )
 
 // ListAlertNames returns the names of every metric alert rule in the subscription.
 // The api-version used for these calls lives inside the armmonitor module, not here.
+// The list is retried with backoff so a transient ARM hiccup does not fail the read.
 func ListAlertNames(ctx context.Context, subscriptionID string, cred azcore.TokenCredential, opts *arm.ClientOptions) ([]string, error) {
 	client, err := armmonitor.NewMetricAlertsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	var names []string
+	err = backoff.Retry(func() error {
+		got, err := listOnce(ctx, client)
+		if err != nil {
+			return err
+		}
+		names = got
+		return nil
+	}, backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
+	if err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
+func listOnce(ctx context.Context, client *armmonitor.MetricAlertsClient) ([]string, error) {
 	var names []string
 	pager := client.NewListBySubscriptionPager(nil)
 	for pager.More() {
