@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Bundle every Go module update into a single grouped PR, the way most teams
+    # run Dependabot. This is exactly the review surface Licence to Patch triages:
+    # several bumps at once, where one may be an unsafe contract change.
+    groups:
+      azure-and-tooling:
+        patterns:
+          - "*"
